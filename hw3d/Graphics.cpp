@@ -1,10 +1,12 @@
 #include "Graphics.h"
 #include "dxerr.h"
 #include <sstream>
+#include <d3dcompiler.h>
 
 namespace wrl = Microsoft::WRL;
 
 #pragma comment(lib,"d3d11.lib")
+#pragma comment(lib,"D3DCompiler.lib")
 
 // graphics exception checking/throwing macros (some with dxgi infos)
 #define GFX_EXCEPT_NOINFO(hr) Graphics::HrException( __LINE__,__FILE__,(hr) )
@@ -92,6 +94,94 @@ void Graphics::ClearBuffer( float red,float green,float blue ) noexcept
 {
 	const float color[] = { red,green,blue,1.0f };
 	pContext->ClearRenderTargetView( pTarget.Get(),color );
+}
+
+void Graphics::DrawTestTriangle()
+{
+	namespace wrl = Microsoft::WRL;
+	HRESULT hr;
+	struct Vertex
+	{
+		float x;
+		float y;
+		float r;
+		float g;
+		float b;
+	};
+	//设定顶点缓冲区
+	const Vertex vertices[] =
+	{
+		{ 0.0f,0.5f,1.0f,0.0f,0.0f},
+		{ 0.5f,-0.5f,0.0f,1.0f,0.0f},
+		{ -0.5f,-0.5f,0.0f,0.0f,1.0f},
+		//三个点用三原色覆盖
+	};
+	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
+	D3D11_BUFFER_DESC bd = {};//设定设备描述符
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.CPUAccessFlags = 0u;
+	bd.MiscFlags = 0u;
+	bd.ByteWidth = sizeof(vertices);
+	bd.StructureByteStride = sizeof(Vertex);
+	D3D11_SUBRESOURCE_DATA sd = {};
+	sd.pSysMem = vertices;
+	GFX_THROW_INFO(pDevice->CreateBuffer(&bd, &sd, &pVertexBuffer));//检查返回值
+	
+	//把设定好的缓存绑定到Pipeline
+	const UINT stride = sizeof(Vertex);
+	const UINT offset = 0u;
+	pContext->IASetVertexBuffers(0u, 1u, pVertexBuffer.GetAddressOf(), &stride, &offset);
+
+	//创建像素着色器
+	wrl::ComPtr<ID3D11PixelShader> pPixelShader;
+	wrl::ComPtr<ID3DBlob> pBlob;
+	GFX_THROW_INFO(D3DReadFileToBlob(L"PixelShader.cso", &pBlob));//读入文件
+	GFX_THROW_INFO(pDevice->CreatePixelShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pPixelShader));
+	//绑定像素着色器
+	pContext->PSSetShader(pPixelShader.Get(), nullptr, 0u);
+
+	//创建顶点着色器
+	wrl::ComPtr<ID3D11VertexShader>pVertexShader;
+	D3DReadFileToBlob(L"VertexShader.cso", &pBlob);//读入文件
+	pDevice->CreateVertexShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pVertexShader);
+	//绑定VertexShader
+	pContext->VSSetShader(pVertexShader.Get(), nullptr, 0u);
+
+	//input layout，告诉顶点着色器如何读取顶点数据,并把IL绑定到管线
+	wrl::ComPtr<ID3D11InputLayout>pInputLayout;
+	const D3D11_INPUT_ELEMENT_DESC ied[] =
+	{
+		{"Position",0,DXGI_FORMAT_R32G32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0},
+		{"Color",0,DXGI_FORMAT_R32G32B32_FLOAT,0,8u,D3D11_INPUT_PER_VERTEX_DATA,0},
+	};
+	pDevice->CreateInputLayout(
+		ied, (UINT)std::size(ied),
+		pBlob->GetBufferPointer(),
+		pBlob->GetBufferSize(),
+		&pInputLayout
+	);
+	//绑定
+	pContext->IASetInputLayout(pInputLayout.Get());
+
+	//指定输出目标（否则ps不知道往哪输出颜色）
+	pContext->OMSetRenderTargets(1u,pTarget.GetAddressOf(), nullptr);
+
+	//设定初始图元类型为三角形阵列（因为有三个点）
+	pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	//配置视口映射，不用绑定到pipeline
+	D3D11_VIEWPORT vp;
+	vp.Width = 800;
+	vp.Height = 600;
+	vp.MinDepth = 0;
+	vp.MaxDepth = 1;
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 1;
+	pContext->RSSetViewports(1u, &vp);
+
+	//调用pDevice绘制
+	pContext->Draw((UINT)std::size(vertices), 0u);
 }
 
 
