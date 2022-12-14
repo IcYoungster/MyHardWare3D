@@ -123,11 +123,11 @@ void Graphics::DrawTestTriangle( float angle)
 		{ 0.0f,0.5f,255,0,0,0 },
 		{ 0.5f,-0.5f,0,255,0,0 },
 		{ -0.5f,-0.5f,0,0,255,0 },
-		{ -0.3f,0.3f,0,255,0,0 },
-		{ 0.3f,0.3f,0,0,255,0 },
-		{ 0.0f,-1.0f,255,0,0,0 },
+		//{ -0.3f,0.3f,0,255,0,0 },//其余三个三角形
+		//{ 0.3f,0.3f,0,0,255,0 },
+		//{ 0.0f,-1.0f,255,0,0,0 },
 	};
-	vertices[0].color.g = 255;
+	//vertices[0].color.g = 255;
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
 	D3D11_BUFFER_DESC bd = {};
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
@@ -150,9 +150,9 @@ void Graphics::DrawTestTriangle( float angle)
 	const unsigned short indices[] =
 	{
 		0,1,2,
-		0,2,3,
-		0,4,1,
-		2,1,5,
+		//0,2,3,//其余三个三角形对应的索引值
+		//0,4,1,
+		//2,1,5,
 	};
 	wrl::ComPtr<ID3D11Buffer> pIndexBuffer;
 	D3D11_BUFFER_DESC ibd = {};
