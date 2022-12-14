@@ -2,6 +2,7 @@
 #include "dxerr.h"
 #include <sstream>
 #include <d3dcompiler.h>
+#include <cmath>
 
 namespace wrl = Microsoft::WRL;
 
@@ -115,19 +116,20 @@ void Graphics::DrawTestTriangle( float angle)
 		} color ;
 		
 	};
+
 	//设定顶点缓冲区
 	Vertex vertices[] =
 	{
-		{ 0.0f,	0.5f,	255,0,0,0},
-		{ 0.5f,	-0.5f,	0,255,0,0},
-		{ -0.5f,-0.5f,	0,0,255,0},
-		{ -0.3f,0.3f,	0,255,0,0},
-		{ 0.3f,	0.3f,	0,0,255,0},
-		{ 0.0f,-0.8f,	255,0,0,0}
-		//三个点用三原色覆盖
+		{ 0.0f,0.5f,255,0,0,0 },
+		{ 0.5f,-0.5f,0,255,0,0 },
+		{ -0.5f,-0.5f,0,0,255,0 },
+		{ -0.3f,0.3f,0,255,0,0 },
+		{ 0.3f,0.3f,0,0,255,0 },
+		{ 0.0f,-1.0f,255,0,0,0 },
 	};
+	vertices[0].color.g = 255;
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
-	D3D11_BUFFER_DESC bd = {};//设定设备描述符
+	D3D11_BUFFER_DESC bd = {};
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bd.Usage = D3D11_USAGE_DEFAULT;
 	bd.CPUAccessFlags = 0u;
@@ -136,14 +138,39 @@ void Graphics::DrawTestTriangle( float angle)
 	bd.StructureByteStride = sizeof(Vertex);
 	D3D11_SUBRESOURCE_DATA sd = {};
 	sd.pSysMem = vertices;
-	GFX_THROW_INFO(pDevice->CreateBuffer(&bd, &sd, &pVertexBuffer));//检查返回值
-		
-	//把设定好的缓存绑定到Pipeline
+	GFX_THROW_INFO(pDevice->CreateBuffer(&bd, &sd, &pVertexBuffer));
+
+	// Bind vertex buffer to pipeline
 	const UINT stride = sizeof(Vertex);
 	const UINT offset = 0u;
 	pContext->IASetVertexBuffers(0u, 1u, pVertexBuffer.GetAddressOf(), &stride, &offset);
 
-	//创建常数缓存：为了变换矩阵
+
+	// create index buffer
+	const unsigned short indices[] =
+	{
+		0,1,2,
+		0,2,3,
+		0,4,1,
+		2,1,5,
+	};
+	wrl::ComPtr<ID3D11Buffer> pIndexBuffer;
+	D3D11_BUFFER_DESC ibd = {};
+	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	ibd.Usage = D3D11_USAGE_DEFAULT;
+	ibd.CPUAccessFlags = 0u;
+	ibd.MiscFlags = 0u;
+	ibd.ByteWidth = sizeof(indices);
+	ibd.StructureByteStride = sizeof(unsigned short);
+	D3D11_SUBRESOURCE_DATA isd = {};
+	isd.pSysMem = indices;
+	GFX_THROW_INFO(pDevice->CreateBuffer(&ibd, &isd, &pIndexBuffer));
+
+	// bind index buffer
+	pContext->IASetIndexBuffer(pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0u);
+
+
+	// create constant buffer for transformation matrix
 	struct ConstantBuffer
 	{
 		struct
@@ -156,8 +183,8 @@ void Graphics::DrawTestTriangle( float angle)
 		{
 			(3.0f / 4.0f) * std::cos(angle),	std::sin(angle),	0.0f,	0.0f,
 			(3.0f / 4.0f) * -std::sin(angle),	std::cos(angle),	0.0f,	0.0f,
-			0.0f,	0.0f,	1.0f,	0.0f,
-			0.0f,	0.0f,	0.0f,	1.0f,
+			0.0f,								0.0f,				1.0f,	0.0f,
+			0.0f,								0.0f,				0.0f,	1.0f,
 		}
 	};
 	wrl::ComPtr<ID3D11Buffer> pConstantBuffer;
@@ -170,32 +197,10 @@ void Graphics::DrawTestTriangle( float angle)
 	cbd.StructureByteStride = 0u;
 	D3D11_SUBRESOURCE_DATA csd = {};
 	csd.pSysMem = &cb;
-	GFX_THROW_INFO(pDevice->CreateBuffer(&cbd, &csd, &pConstantBuffer));//检查返回值
-	//绑定
-	pContext->VSGetConstantBuffers(0u, 1u, pConstantBuffer.GetAddressOf());
+	GFX_THROW_INFO(pDevice->CreateBuffer(&cbd, &csd, &pConstantBuffer));
 
-	//创建索引缓存
-	const unsigned short indices[] =
-	{
-		0,1,2,
-		0,2,3,
-		0,4,1,
-		2,1,5,
-	};
-	wrl::ComPtr<ID3D11Buffer>pIndexBuffer;
-	D3D11_BUFFER_DESC ibd = {};
-	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	ibd.Usage = D3D11_USAGE_DEFAULT;
-	ibd.CPUAccessFlags = 0u;
-	ibd.MiscFlags = 0u;
-	ibd.ByteWidth = sizeof(indices);
-	ibd.StructureByteStride = sizeof(unsigned short);
-	D3D11_SUBRESOURCE_DATA isd = {};
-	isd.pSysMem = indices;
-	GFX_THROW_INFO(pDevice->CreateBuffer(&ibd, &isd, &pIndexBuffer));//检查返回值
-	//binding 
-	pContext->IASetIndexBuffer(pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0u);
-
+	// bind constant buffer to vertex shader
+	pContext->VSSetConstantBuffers(0u, 1u, pConstantBuffer.GetAddressOf());
 
 	//创建像素着色器
 	wrl::ComPtr<ID3D11PixelShader> pPixelShader;
